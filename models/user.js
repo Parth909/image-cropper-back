@@ -36,10 +36,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // base64 images
     bannerimg: {
       type: String,
       default: "",
     },
+    // base 64 images
     profileimg: {
       type: String,
       default: "",
@@ -95,7 +97,7 @@ userSchema.methods = {
 
     try {
       return crypto
-        .createHmac("sha1", this.salt) // from the salt stored in db we can hash the typed password
+        .createHmac("sha1", this.salt)
         .update(password)
         .digest("hex");
     } catch (err) {
