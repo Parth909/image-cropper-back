@@ -2,10 +2,7 @@ const User = require("../models/user");
 const AWS = require("aws-sdk");
 const jwt = require("jsonwebtoken"); // used for signing, verifying & decoding
 // express-jwt is used to check the validity of *token from headers* by performing series of validations & the decoded info will be available to us in *req.user* by default
-const {
-  registerEmailParams,
-  forgotPasswordEmailParams,
-} = require("../helpers/email");
+const { registerEmailParams } = require("../helpers/email");
 const { default: ShortUniqueId } = require("short-unique-id");
 const uid = new ShortUniqueId();
 const expressJWT = require("express-jwt");
@@ -62,7 +59,7 @@ exports.register = (req, res) => {
           });
         })
         .catch((error) => {
-          console.log("SES email error on register", error);
+          // console.log("SES email error on register", error);
           res.status(406).json({
             error: `Cannot Verify Your Email plz try again`,
           });
@@ -111,7 +108,6 @@ exports.login = async (req, res) => {
   // User.findOne({email: email}).exec((err, user)=>{/* All the stuff */})//Promise way
 
   const user = await User.findOne({ email });
-  console.log(user);
   // user is null if not present & !null -> true
   if (!user) {
     return res.status(400).json({
@@ -122,7 +118,7 @@ exports.login = async (req, res) => {
   // authenticate method of User Schema
   if (!user.authenticate(password)) {
     return res.status(400).json({
-      error: "Email and password do not match",
+      error: "Invalid Credentials !",
     });
   }
 
@@ -139,7 +135,9 @@ exports.login = async (req, res) => {
     username,
     email: rEmail,
     bio,
-    social_media_links,
+    hobbies,
+    bannerimg,
+    profileimg,
   } = user;
 
   return res.status(200).json({
@@ -151,7 +149,9 @@ exports.login = async (req, res) => {
       username,
       email: rEmail,
       bio,
-      social_media_links,
+      hobbies,
+      bannerimg,
+      profileimg,
     },
   });
 };
@@ -162,9 +162,9 @@ exports.requireSignIn = expressJWT({
   algorithms: ["HS256"],
 }); // gives -> req.user._id
 
-// we can Create our middlewares directory and add this there
 exports.authMiddleware = (req, res, next) => {
   const authUserId = req.user._id;
+  console.log(req.user);
   User.findOne({ _id: authUserId }).exec((err, user) => {
     if (err || !user) {
       return res.status(400).json({
@@ -175,119 +175,4 @@ exports.authMiddleware = (req, res, next) => {
     req.profile = user; // adding in the request
     next();
   });
-};
-
-exports.adminMiddleware = (req, res, next) => {
-  const adminUserId = req.user._id;
-  User.findOne({ _id: adminUserId }).exec((err, user) => {
-    if (err || !user) {
-      return res.status(400).json({
-        error: "User not found",
-      });
-    }
-
-    if (user.role !== "admin") {
-      return res.status(400).json({ error: "Admin resource. Access Denied" });
-    }
-
-    req.profile = user; // adding in the request
-    next();
-  });
-};
-
-exports.forgotPassword = (req, res) => {
-  const { email } = req.body;
-
-  // check if user exists in the db
-  User.findOne({ email }).exec((err, user) => {
-    if (err || !user) {
-      return res.status(400).json({
-        error: "User with that email doesn't exist",
-      });
-    }
-
-    // generate the token
-    const token = jwt.sign(
-      { name: user.name },
-      process.env.JWT_RESET_PASSWORD,
-      { expiresIn: "10m" }
-    );
-
-    // CREATE A TEMPLATE FOR THE EMAIL
-    const params = forgotPasswordEmailParams(email, token);
-
-    // save the resetPasswordLink in the db
-    return user.updateOne({ resetPasswordLink: token }, (err, success) => {
-      if (err) {
-        return res.status(400).json({
-          error: "Password Reset failed Try again",
-        });
-      }
-
-      // SEND THE EMAIL
-      const sendResetEmail = ses.sendEmail(params).promise();
-
-      sendResetEmail
-        .then((data) => {
-          console.log("email submitted fo SES", data);
-          res.json({
-            message: `Email has been sent to ${email}, Click on the link in the email to reset your password`,
-          });
-        })
-        .catch((error) => {
-          console.log("SES email error on reset password", error);
-          res.status(406).json({
-            error: `Cannot Verify Your Email plz try again`,
-          });
-        });
-    });
-  });
-};
-
-exports.resetPassword = (req, res) => {
-  const { resetPasswordLink, newPassword } = req.body;
-
-  if (resetPasswordLink) {
-    // check expiry
-    jwt.verify(
-      resetPasswordLink,
-      process.env.JWT_RESET_PASSWORD,
-      (err, success) => {
-        if (err) {
-          return res.status(400).json({
-            error: "Expired link try again",
-          });
-        }
-
-        User.findOne({ resetPasswordLink }).exec((err, user) => {
-          if (err || !user) {
-            return res.status(400).json({
-              error: "Invalid link try again",
-            });
-          }
-
-          const updatedFields = {
-            password: newPassword,
-            resetPasswordLink: "",
-          };
-
-          // extend or merge with the existing user object
-
-          user = _.extend(user, updatedFields);
-
-          user.save((err, result) => {
-            if (err) {
-              return res.status(400).json({
-                error: "Password reset failed, try again",
-              });
-            }
-
-            return res.json({
-              message: "Great login with your new password",
-            });
-          });
-        });
-      }
-    );
-  }
 };
