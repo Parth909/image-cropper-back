@@ -55,6 +55,14 @@ const userSchema = new mongoose.Schema(
       data: String,
       default: "",
     },
+    facebookAuth: {
+      type: Boolean,
+      required: true,
+    },
+    googleAuth: {
+      type: Boolean,
+      required: true,
+    },
     hobbies: [
       {
         type: String,
