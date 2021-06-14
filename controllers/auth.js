@@ -151,6 +151,8 @@ exports.login = async (req, res) => {
     hobbies,
     bannerimg,
     profileimg,
+    facebookAuth,
+    googleAuth,
   } = user;
 
   return res.status(200).json({
@@ -165,6 +167,8 @@ exports.login = async (req, res) => {
       hobbies,
       bannerimg,
       profileimg,
+      facebookAuth,
+      googleAuth,
     },
   });
 };
@@ -194,7 +198,7 @@ exports.signinFacebook = async (req, res) => {
   const { email, name, image_url } = req.body;
 
   const user = await User.findOne({ email });
-  if (!user) {
+  if (user) {
     return res.status(400).json({
       error: "User with that email already exists !",
     });
@@ -203,7 +207,7 @@ exports.signinFacebook = async (req, res) => {
   let names = name.split(" ");
   let firstname = names[0];
   let lastname = names[1];
-  let username = firstname + lastname + uuid();
+  let username = firstname + "_" + lastname + "_" + uuid();
   // this password is of no use while authenticating as authentication will be done by fb giving us the data
   let password = process.env.PASSWORD_OF_NO_USE;
   const newUser = new User({
@@ -239,6 +243,8 @@ exports.signinFacebook = async (req, res) => {
       hobbies,
       bannerimg,
       profileimg,
+      facebookAuth,
+      googleAuth,
     } = user;
 
     return res.status(200).json({
@@ -253,6 +259,88 @@ exports.signinFacebook = async (req, res) => {
         hobbies,
         bannerimg,
         profileimg,
+        facebookAuth,
+        googleAuth,
+      },
+    });
+  });
+};
+
+exports.refreshSignInFacebook = async (req, res) => {
+  const { email, name, image_url, _id } = req.body;
+
+  const usr = User.findOne({ _id });
+
+  if (usr.email !== email) {
+    return res.status(400).json({
+      error: "Impersonating other users is forbidden !",
+    });
+  }
+
+  const user = await User.findOne({ email });
+  if (user) {
+    return res.status(400).json({
+      error: "User with that email already exists !",
+    });
+  }
+
+  let names = name.split(" ");
+  let firstname = names[0];
+  let lastname = names[1];
+  let username = firstname + "_" + lastname + "_" + uuid();
+  // this password is of no use while authenticating as authentication will be done by fb giving us the data
+  let password = process.env.PASSWORD_OF_NO_USE;
+  const newUser = new User({
+    firstname,
+    lastname,
+    username,
+    email,
+    password,
+    profileimg: image_url,
+    facebookAuth: true,
+    googleAuth: false,
+  }); // already checked in above function if mail is taken
+  newUser.save((err, user) => {
+    if (err) {
+      return res.status(401).json({
+        error: "Error saving user as user already exists. Try again !",
+      });
+    }
+
+    // success
+    // generate token and send to client
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d", // expire after 7 days
+    });
+
+    const {
+      _id,
+      firstname,
+      lastname,
+      username,
+      email,
+      bio,
+      hobbies,
+      bannerimg,
+      profileimg,
+      facebookAuth,
+      googleAuth,
+    } = user;
+
+    return res.status(200).json({
+      token,
+      user: {
+        _id,
+        firstname,
+        lastname,
+        username,
+        email,
+        bio,
+        hobbies,
+        bannerimg,
+        profileimg,
+        facebookAuth,
+        googleAuth,
       },
     });
   });
