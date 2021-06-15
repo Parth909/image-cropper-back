@@ -207,7 +207,8 @@ exports.signinFacebook = async (req, res) => {
   let names = name.split(" ");
   let firstname = names[0];
   let lastname = names[1];
-  let username = firstname + "_" + lastname + "_" + uuid();
+  let username =
+    firstname.toLowerCase() + "_" + lastname.toLowerCase() + "_" + uuid();
   // this password is of no use while authenticating as authentication will be done by fb giving us the data
   let password = process.env.PASSWORD_OF_NO_USE;
   const newUser = new User({
@@ -230,7 +231,7 @@ exports.signinFacebook = async (req, res) => {
     // success
     // generate token and send to client
     const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d", // expire after 7 days
+      expiresIn: "10d", // expire after 7 days
     });
 
     const {
@@ -269,48 +270,50 @@ exports.signinFacebook = async (req, res) => {
 exports.refreshSignInFacebook = async (req, res) => {
   const { email, name, image_url, _id } = req.body;
 
-  const usr = User.findOne({ _id });
+  console.log("req.body", req.body);
 
-  if (usr.email !== email) {
+  const usr = await User.findOne({ _id: _id });
+
+  if (!usr) {
     return res.status(400).json({
-      error: "Impersonating other users is forbidden !",
+      error: "The user with associated token doesn't exist",
     });
   }
 
-  const user = await User.findOne({ email });
-  if (user) {
-    return res.status(400).json({
-      error: "User with that email already exists !",
+  if (usr.email !== email) {
+    return res.status(406).json({
+      error: "Token user is different than user you are trying to log in !",
     });
   }
 
   let names = name.split(" ");
   let firstname = names[0];
   let lastname = names[1];
-  let username = firstname + "_" + lastname + "_" + uuid();
+  let username =
+    firstname.toLowerCase() + "_" + lastname.toLowerCase() + "_" + uuid();
   // this password is of no use while authenticating as authentication will be done by fb giving us the data
   let password = process.env.PASSWORD_OF_NO_USE;
-  const newUser = new User({
-    firstname,
-    lastname,
-    username,
-    email,
-    password,
-    profileimg: image_url,
-    facebookAuth: true,
-    googleAuth: false,
-  }); // already checked in above function if mail is taken
-  newUser.save((err, user) => {
+  User.findOneAndUpdate(
+    { email: email },
+    {
+      firstname,
+      lastname,
+      username,
+      email,
+      facebookAuth: true,
+      googleAuth: false,
+    }
+  ).exec((err, user) => {
     if (err) {
       return res.status(401).json({
-        error: "Error saving user as user already exists. Try again !",
+        error: "Error generating refresh token !",
       });
     }
 
     // success
     // generate token and send to client
     const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d", // expire after 7 days
+      expiresIn: "10d", // expire after 7 days
     });
 
     const {
