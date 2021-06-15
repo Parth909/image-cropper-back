@@ -200,7 +200,7 @@ exports.signinFacebook = async (req, res) => {
   const user = await User.findOne({ email });
   if (user) {
     return res.status(400).json({
-      error: "User with that email already exists !",
+      error: "User exists with normal account ! Enter your details manually",
     });
   }
 
@@ -356,7 +356,7 @@ exports.signinGoogle = async (req, res) => {
   const user = await User.findOne({ email });
   if (user) {
     return res.status(400).json({
-      error: "User with that email already exists !",
+      error: "User exists with normal account ! Enter your details manually",
     });
   }
 
