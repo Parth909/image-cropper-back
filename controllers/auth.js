@@ -268,7 +268,7 @@ exports.signinFacebook = async (req, res) => {
 };
 
 exports.refreshSignInFacebook = async (req, res) => {
-  const { email, name, image_url, _id } = req.body;
+  const { email, name, _id } = req.body;
 
   console.log("req.body", req.body);
 
@@ -276,7 +276,8 @@ exports.refreshSignInFacebook = async (req, res) => {
 
   if (!usr) {
     return res.status(400).json({
-      error: "The user with associated token doesn't exist",
+      error:
+        "The user with associated token doesn't exist or token has expired",
     });
   }
 
@@ -289,10 +290,10 @@ exports.refreshSignInFacebook = async (req, res) => {
   let names = name.split(" ");
   let firstname = names[0];
   let lastname = names[1];
+
   let username =
     firstname.toLowerCase() + "_" + lastname.toLowerCase() + "_" + uuid();
   // this password is of no use while authenticating as authentication will be done by fb giving us the data
-  let password = process.env.PASSWORD_OF_NO_USE;
   User.findOneAndUpdate(
     { email: email },
     {
@@ -302,6 +303,165 @@ exports.refreshSignInFacebook = async (req, res) => {
       email,
       facebookAuth: true,
       googleAuth: false,
+    }
+  ).exec((err, user) => {
+    if (err) {
+      return res.status(401).json({
+        error: "Error generating refresh token !",
+      });
+    }
+
+    // success
+    // generate token and send to client
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "10d", // expire after 7 days
+    });
+
+    const {
+      _id,
+      firstname,
+      lastname,
+      username,
+      email,
+      bio,
+      hobbies,
+      bannerimg,
+      profileimg,
+      facebookAuth,
+      googleAuth,
+    } = user;
+
+    return res.status(200).json({
+      token,
+      user: {
+        _id,
+        firstname,
+        lastname,
+        username,
+        email,
+        bio,
+        hobbies,
+        bannerimg,
+        profileimg,
+        facebookAuth,
+        googleAuth,
+      },
+    });
+  });
+};
+
+exports.signinGoogle = async (req, res) => {
+  const { email, name, image_url } = req.body;
+
+  const user = await User.findOne({ email });
+  if (user) {
+    return res.status(400).json({
+      error: "User with that email already exists !",
+    });
+  }
+
+  let names = name.split(" ");
+  let firstname = names[0];
+  let lastname = names[1];
+
+  let username =
+    firstname.toLowerCase() + "_" + lastname.toLowerCase() + "_" + uuid();
+
+  // this password is of no use while authenticating as authentication will be done by fb giving us the data
+  let password = process.env.PASSWORD_OF_NO_USE;
+  const newUser = new User({
+    firstname,
+    lastname,
+    username,
+    email,
+    password,
+    profileimg: image_url,
+    facebookAuth: false,
+    googleAuth: true,
+  }); // already checked in above function if mail is taken
+  newUser.save((err, user) => {
+    if (err) {
+      console.log(err);
+      return res.status(401).json({
+        error: "Error saving user . Try again !",
+      });
+    }
+
+    // success
+    // generate token and send to client
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "10d", // expire after 7 days
+    });
+
+    const {
+      _id,
+      firstname,
+      lastname,
+      username,
+      email,
+      bio,
+      hobbies,
+      bannerimg,
+      profileimg,
+      facebookAuth,
+      googleAuth,
+    } = user;
+
+    return res.status(200).json({
+      token,
+      user: {
+        _id,
+        firstname,
+        lastname,
+        username,
+        email,
+        bio,
+        hobbies,
+        bannerimg,
+        profileimg,
+        facebookAuth,
+        googleAuth,
+      },
+    });
+  });
+};
+
+exports.refreshSignInGoogle = async (req, res) => {
+  const { email, name, _id } = req.body;
+
+  console.log("req.body", req.body);
+
+  const usr = await User.findOne({ _id: _id });
+
+  if (!usr) {
+    return res.status(400).json({
+      error:
+        "The user with associated token doesn't exist or token has expired",
+    });
+  }
+
+  if (usr.email !== email) {
+    return res.status(406).json({
+      error: "Token user is different than user you are trying to log in !",
+    });
+  }
+
+  let names = name.split(" ");
+  let firstname = names[0];
+  let lastname = names[1];
+
+  let username =
+    firstname.toLowerCase() + "_" + lastname.toLowerCase() + "_" + uuid();
+  // this password is of no use while authenticating as authentication will be done by fb giving us the data
+  User.findOneAndUpdate(
+    { email: email },
+    {
+      firstname,
+      lastname,
+      username,
+      email,
+      facebookAuth: false,
+      googleAuth: true,
     }
   ).exec((err, user) => {
     if (err) {
